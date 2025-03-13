@@ -1,0 +1,46 @@
+name: Build and Deploy to AWS/Azure
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build API
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish API
+        run: dotnet publish -c Release -o out
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t yourdockerhubusername/task-api .
+          docker tag yourdockerhubusername/task-api:latest yourdockerhubusername/task-api:${{ github.sha }}
+          docker push yourdockerhubusername/task-api:${{ github.sha }}
+          docker push yourdockerhubusername/task-api:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS/Azure
+        run: |
+          echo "Deploying to cloud provider..."
+          ssh ubuntu@your-server-ip 'docker pull yourdockerhubusername/task-api:latest && docker-compose up -d'
